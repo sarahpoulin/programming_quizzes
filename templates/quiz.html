@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Types in JavaScript Quiz</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="quiz-header">
+            <h1>Data Types in JavaScript</h1>
+            <div class="progress-info">
+                <span class="phase-badge" id="phaseBadge">{{ phase }}</span>
+                <span class="question-counter">Question {{ question_num }} of {{ total_questions }}</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+        </div>
+
+        <div class="quiz-content">
+            <div class="question-section">
+                <h2 class="question-text">{{ current_question.question }}</h2>
+            </div>
+
+            <form id="answerForm" class="answer-section">
+                {% if question_type == 'multiple_choice' %}
+                    <div class="options">
+                        {% for index, option in current_question.options.items() %}
+                            <label class="option-label">
+                                <input type="radio" name="answer" value="{{ index }}" class="option-input">
+                                <span class="option-text">{{ option }}</span>
+                            </label>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="fill-in-blank">
+                        <input type="text" id="blankInput" name="answer" class="blank-input" placeholder="Type your answer here..." autocomplete="off">
+                    </div>
+                {% endif %}
+            </form>
+
+            <div id="feedback" class="feedback hidden">
+                <div id="feedbackContent"></div>
+            </div>
+
+            <div class="button-section">
+                <button id="submitBtn" class="btn btn-primary">Submit Answer</button>
+                <button id="nextBtn" class="btn btn-next hidden">Next Question →</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const submitBtn = document.getElementById('submitBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const answerForm = document.getElementById('answerForm');
+        const feedback = document.getElementById('feedback');
+        const feedbackContent = document.getElementById('feedbackContent');
+        const progressFill = document.getElementById('progressFill');
+        const questionNum = {{ question_num }};
+        const totalQuestions = {{ total_questions }};
+        const questionType = '{{ question_type }}';
+        
+        let answered = false;
+
+        // Update progress bar
+        function updateProgress() {
+            const percentage = (questionNum / totalQuestions) * 100;
+            progressFill.style.width = percentage + '%';
+        }
+
+        updateProgress();
+
+        // Submit answer
+        submitBtn.addEventListener('click', async () => {
+            let selectedAnswer;
+            
+            if (questionType === 'multiple_choice') {
+                selectedAnswer = document.querySelector('input[name="answer"]:checked');
+                if (!selectedAnswer) {
+                    alert('Please select an answer');
+                    return;
+                }
+                selectedAnswer = selectedAnswer.value;
+            } else {
+                selectedAnswer = document.getElementById('blankInput').value.trim();
+                if (!selectedAnswer) {
+                    alert('Please enter an answer');
+                    return;
+                }
+            }
+
+            try {
+                const response = await fetch('/submit_answer', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ answer: selectedAnswer })
+                });
+
+                const data = await response.json();
+
+                // Display feedback
+                let feedbackHTML = '';
+                if (data.is_correct) {
+                    feedbackHTML = `
+                        <div class="feedback-correct">
+                            ✓ Correct!
+                        </div>
+                    `;
+                } else {
+                    feedbackHTML = `
+                        <div class="feedback-incorrect">
+                            ✗ Incorrect
+                        </div>
+                        <div class="correct-answer">
+                            <strong>Correct answer:</strong> ${data.correct_answer_text}
+                        </div>
+                    `;
+                }
+
+                feedbackContent.innerHTML = feedbackHTML;
+                feedback.classList.remove('hidden');
+                
+                answered = true;
+                submitBtn.classList.add('hidden');
+                nextBtn.classList.remove('hidden');
+                answerForm.style.pointerEvents = 'none';
+                answerForm.style.opacity = '0.6';
+
+            } catch (error) {
+                alert('Error submitting answer: ' + error.message);
+            }
+        });
+
+        // Next question
+        nextBtn.addEventListener('click', async () => {
+            try {
+                await fetch('/next_question', {
+                    method: 'POST'
+                });
+                location.reload();
+            } catch (error) {
+                alert('Error moving to next question: ' + error.message);
+            }
+        });
+
+        // Allow Enter key to submit
+        if (questionType === 'fill_in_the_blank') {
+            document.getElementById('blankInput').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    submitBtn.click();
+                }
+            });
+        }
+    </script>
+</body>
+</html>

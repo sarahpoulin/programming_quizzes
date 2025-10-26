@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz Results - Data Types in JavaScript</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="results-header">
+            <h1>Quiz Complete! 🎉</h1>
+            <p class="subtitle">Here's how you did:</p>
+        </div>
+
+        <div class="results-content">
+            <!-- Score Summary -->
+            <div class="score-summary">
+                <div class="score-circle">
+                    <div class="score-percentage">{{ percentage }}%</div>
+                    <div class="score-fraction">{{ score }}/{{ total }}</div>
+                </div>
+                
+                <div class="score-text">
+                    {% if percentage >= 80 %}
+                        <h2>Excellent! 🌟</h2>
+                        <p>You've mastered this material!</p>
+                    {% elif percentage >= 60 %}
+                        <h2>Good Job! 👍</h2>
+                        <p>You have a solid understanding.</p>
+                    {% elif percentage >= 40 %}
+                        <h2>Keep Learning 📚</h2>
+                        <p>You're making progress!</p>
+                    {% else %}
+                        <h2>Try Again 💪</h2>
+                        <p>Review the material and give it another shot!</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Time Taken -->
+            {% if time_taken %}
+                <div class="time-info">
+                    <span class="label">⏱️ Time Taken:</span>
+                    <span class="value">
+                        {% set seconds = time_taken.total_seconds() | int %}
+                        {% if seconds >= 3600 %}
+                            {{ (seconds // 3600) }}h {{ ((seconds % 3600) // 60) }}m {{ (seconds % 60) }}s
+                        {% elif seconds >= 60 %}
+                            {{ (seconds // 60) }}m {{ (seconds % 60) }}s
+                        {% else %}
+                            {{ seconds }}s
+                        {% endif %}
+                    </span>
+                </div>
+            {% endif %}
+
+            <!-- Retry Results -->
+            {% if retry_round > 0 %}
+                <div class="retry-stats">
+                    <h3>📋 Retry Information</h3>
+                    <p>You completed <strong>{{ retry_round }}</strong> retry round(s) to get all questions correct.</p>
+                </div>
+            {% endif %}
+
+            <!-- Detailed Answer Review -->
+            <div class="answer-review">
+                <h3>📝 Answer Review</h3>
+                <div class="review-list">
+                    {% for q_index in range(quiz_data.questions|length) %}
+                        {% if q_index in answers %}
+                            {% set answer_data = answers[q_index] %}
+                            <div class="review-item {% if answer_data.first_attempt_correct %}correct{% else %}incorrect{% endif %}{% if answer_data.was_retried %} retried{% endif %}">
+                                <div class="review-question">
+                                    <span class="question-num">Q{{ q_index + 1 }}.</span>
+                                    <span class="question-text">{{ answer_data.question }}</span>
+                                    {% if answer_data.first_attempt_correct %}
+                                        <span class="result-badge badge-correct">
+                                            ✓ Correct (First Try)
+                                        </span>
+                                    {% else %}
+                                        <span class="result-badge badge-retried">
+                                            ✓ Correct (After Retry)
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="results-actions">
+                <a href="{{ url_for('restart') }}" class="btn btn-primary btn-lg">
+                    🔄 Retake Quiz
+                </a>
+                <a href="{{ url_for('selector') }}" class="btn btn-secondary btn-lg">
+                    📚 Select Different Quiz
+                </a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
