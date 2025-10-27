@@ -68,8 +68,21 @@ A dynamic, interactive quiz application built with Flask. Features include quest
 5. **Open in browser**
    - Local: `http://localhost:5000` (or on Mac,`http://localhost:5001`)
    - Optional: Scan the QR Code to access the quiz with your mobile device!
+   
+   The application will automatically detect all `quiz_data*.json` files and display them on the quiz selector page.
 
-The application will automatically detect all `quiz_data*.json` files and display them on the quiz selector page.
+6. **Subsequent Runs**
+   - When you stop the app (ctrl + c), and if you close the terminal, you need to establish your venv or virtual environment, again.
+   
+   **Windows**
+   ```bash
+   prog_env\Scripts\activate
+   ```
+   
+   **macOS/Linux**
+   ```bash
+   source prog_env/bin/activate
+   ```
 
 ## How It Works
 
