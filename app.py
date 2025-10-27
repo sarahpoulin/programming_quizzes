@@ -15,7 +15,6 @@ import uuid
 from datetime import datetime
 import random
 import copy
-import platform
 import qrcode
 from io import BytesIO
 import base64
@@ -56,7 +55,7 @@ def generate_qr_code(url):
     return img_str
 
 def print_qr_code_terminal(url):
-    """Print QR code as text art in terminal with platform-specific rendering"""
+    """Print QR code as text art in terminal"""
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_L,
@@ -69,42 +68,22 @@ def print_qr_code_terminal(url):
     # Get the QR code matrix
     qr_matrix = qr.modules
     
-    # Detect if running on macOS with multiple checks
-    system = platform.system()
-    is_mac = (
-        system == 'Darwin' or 
-        'darwin' in system.lower() or
-        'mac' in platform.platform().lower() or
-        platform.mac_ver()[0] != ''  # Returns non-empty tuple on macOS
-    )
-    
-    if is_mac:  # macOS
-        # Use full blocks only for macOS to avoid line spacing issues
-        for row in qr_matrix:
-            line = ""
-            for cell in row:
-                if cell:
-                    line += "██"  # Double width for better scanning
-                else:
-                    line += "  "
-            print(line)
-    else:  # Linux, Windows, and others
-        # Use half-block characters (2 QR rows per terminal line)
-        for i in range(0, len(qr_matrix), 2):
-            line = ""
-            for j in range(len(qr_matrix[0])):
-                top = qr_matrix[i][j] if i < len(qr_matrix) else False
-                bottom = qr_matrix[i+1][j] if i+1 < len(qr_matrix) else False
-                
-                if top and bottom:
-                    line += "█"
-                elif top:
-                    line += "▀"
-                elif bottom:
-                    line += "▄"
-                else:
-                    line += " "
-            print(line)
+    # Print using half-block characters (2 QR rows per terminal line)
+    for i in range(0, len(qr_matrix), 2):
+        line = ""
+        for j in range(len(qr_matrix[0])):
+            top = qr_matrix[i][j] if i < len(qr_matrix) else False
+            bottom = qr_matrix[i+1][j] if i+1 < len(qr_matrix) else False
+            
+            if top and bottom:
+                line += "█"
+            elif top:
+                line += "▀"
+            elif bottom:
+                line += "▄"
+            else:
+                line += " "
+        print(line)
 
 def load_quiz_data(quiz_name=None):
     """Load quiz data from JSON file"""
