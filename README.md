@@ -37,9 +37,10 @@ A dynamic, interactive quiz application built with Flask. Features include quest
    
    - If it's not:
    - Go to the official Python website:
-    👉 https://www.python.org/downloads/windows/
-
-    Click "Download Python 3.x.x" (choose the latest stable release).
+   - 👉 https://www.python.org/downloads/windows/
+   
+   - Click "Download Python 3.x.x" (choose the latest stable release).
+   - If, after running, you get a popup that asks if you want to allow on Public and Private networks, say yes (this will allow you to be able to connect with your phone).
     
     After installation:
    
