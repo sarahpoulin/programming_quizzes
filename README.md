@@ -30,13 +30,13 @@ A dynamic, interactive quiz application built with Flask. Features include quest
 2. **Create a virtual environment** (recommended)
    
    **On Windows:**
-   If you're not sure whether python is installed:
+   - If you're not sure whether python is installed:
    ```bash
    python --version
    ```
    
-   If it's not:
-   Go to the official Python website:
+   - If it's not:
+   - Go to the official Python website:
     👉 https://www.python.org/downloads/windows/
 
     Click "Download Python 3.x.x" (choose the latest stable release).
