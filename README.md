@@ -72,7 +72,7 @@ A dynamic, interactive quiz application built with Flask. Features include quest
    The application will automatically detect all `quiz_data*.json` files and display them on the quiz selector page.
 
 6. **Subsequent Runs**
-   - When you stop the app (ctrl + c), and if you close the terminal, you need to establish your venv or virtual environment, again.
+   - When you stop the app (ctrl + c), and if you close the terminal, you need to establish your venv or virtual environment, again. First `cd` into `programming_quizzes`:
    
    **Windows**
    ```bash
