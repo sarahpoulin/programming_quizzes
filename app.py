@@ -15,6 +15,7 @@ import uuid
 from datetime import datetime
 import random
 import copy
+import platform
 import qrcode
 from io import BytesIO
 import base64
@@ -55,7 +56,7 @@ def generate_qr_code(url):
     return img_str
 
 def print_qr_code_terminal(url):
-    """Print QR code as text art in terminal"""
+    """Print QR code in terminal with OS-specific rendering"""
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_L,
@@ -64,26 +65,30 @@ def print_qr_code_terminal(url):
     )
     qr.add_data(url)
     qr.make(fit=True)
-    
-    # Get the QR code matrix
     qr_matrix = qr.modules
-    
-    # Print using half-block characters (2 QR rows per terminal line)
-    for i in range(0, len(qr_matrix), 2):
-        line = ""
-        for j in range(len(qr_matrix[0])):
-            top = qr_matrix[i][j] if i < len(qr_matrix) else False
-            bottom = qr_matrix[i+1][j] if i+1 < len(qr_matrix) else False
-            
-            if top and bottom:
-                line += "█"
-            elif top:
-                line += "▀"
-            elif bottom:
-                line += "▄"
-            else:
-                line += " "
-        print(line)
+
+    is_mac = platform.system() == "Darwin"
+
+    if is_mac:
+        # macOS-safe mode
+        for row in qr_matrix:
+            print(''.join('██' if cell else '  ' for cell in row))
+    else:
+        # Fancy half-block mode for Linux/Windows
+        for i in range(0, len(qr_matrix), 2):
+            line = ""
+            for j in range(len(qr_matrix[0])):
+                top = qr_matrix[i][j]
+                bottom = qr_matrix[i+1][j] if i+1 < len(qr_matrix) else False
+                if top and bottom:
+                    line += "█"
+                elif top:
+                    line += "▀"
+                elif bottom:
+                    line += "▄"
+                else:
+                    line += " "
+            print(line)
 
 def load_quiz_data(quiz_name=None):
     """Load quiz data from JSON file"""
@@ -524,6 +529,10 @@ def select_quiz(quiz_name):
     
     return jsonify({'success': True})
 
+def get_port():
+    """Determine port based on system - 5001 for Mac, 5000 otherwise"""
+    return 5001 if platform.system() == "Darwin" else 5000
+
 if __name__ == '__main__':
     # Check if any quiz data exists
     available_quizzes = get_available_quizzes()
@@ -536,6 +545,9 @@ if __name__ == '__main__':
         print("="*60 + "\n")
         exit(1)
     
+    # Determine port based on system
+    port = get_port()
+    
     print("\n" + "="*60)
     print("QUIZ SERVER STARTING")
     print("="*60)
@@ -546,7 +558,7 @@ if __name__ == '__main__':
     
     # Get local IP
     local_ip = get_local_ip()
-    network_url = f"http://{local_ip}:5000"
+    network_url = f"http://{local_ip}:{port}"
     
     # Generate and display QR code
     print("\n" + "="*60)
@@ -561,8 +573,8 @@ if __name__ == '__main__':
     
     print("="*60)
     print(f"Quiz available at:")
-    print(f"  Local:    http://localhost:5000")
+    print(f"  Local:    http://localhost:{port}")
     print(f"  Network:  {network_url}")
     print("="*60 + "\n")
     
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=port, debug=True)
