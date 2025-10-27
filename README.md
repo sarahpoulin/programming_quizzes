@@ -24,7 +24,7 @@ A dynamic, interactive quiz application built with Flask. Features include quest
 1. **Clone the repository**
    ```bash
    git clone https://github.com/sarahpoulin/programming_quizzes.git
-   cd prog_fundy_quiz
+   cd programming_quizzes
    ```
 
 2. **Create a virtual environment** (recommended)
