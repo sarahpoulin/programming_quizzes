@@ -23,13 +23,26 @@ A dynamic, interactive quiz application built with Flask. Features include quest
 
 1. **Clone the repository**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/sarahpoulin/programming_quizzes.git
    cd prog_fundy_quiz
    ```
 
 2. **Create a virtual environment** (recommended)
    
    **On Windows:**
+   If you're not sure whether python is installed:
+   ```bash
+   python --version
+   ```
+   
+   If it's not:
+   Go to the official Python website:
+    👉 https://www.python.org/downloads/windows/
+
+    Click "Download Python 3.x.x" (choose the latest stable release).
+    
+    After installation:
+   
    ```bash
    python -m venv prog_env
    prog_env\Scripts\activate
@@ -53,7 +66,7 @@ A dynamic, interactive quiz application built with Flask. Features include quest
 
 5. **Open in browser**
    - Local: `http://localhost:5000`
-   - Network: Check the console output for your IP address
+   - Optional: Scan the QR Code to access the quiz with your mobile device!
 
 The application will automatically detect all `quiz_data*.json` files and display them on the quiz selector page.
 
@@ -66,7 +79,7 @@ The application will automatically detect all `quiz_data*.json` files and displa
 5. **Results**: Detailed results show:
    - Overall score and percentage
    - Questions answered correctly on first try (green)
-   - Questions that required retrying (blue)
+   - Questions that required retrying (red)
    - Time taken to complete
 
 ## Deactivating the Virtual Environment

@@ -4,6 +4,8 @@ Flask Quiz Application - Data Types in JavaScript
 Includes retry mechanism for incorrectly answered questions
 Supports multiple retries until all questions are answered correctly
 Shuffles questions and answer options on each quiz start
+Supports inline fill-in-the-blank questions
+Supports multiple-answer questions (select all that apply)
 """
 
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
@@ -13,10 +15,75 @@ import uuid
 from datetime import datetime
 import random
 import copy
+import qrcode
+from io import BytesIO
+import base64
+import socket
 
 app = Flask(__name__)
 # Generate a new secret key each time the app starts
 app.secret_key = str(uuid.uuid4())
+
+def get_local_ip():
+    """Get the local IP address that can reach external networks"""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return socket.gethostbyname(socket.gethostname())
+
+def generate_qr_code(url):
+    """Generate a QR code and return as base64 string"""
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_L,
+        box_size=10,
+        border=4,
+    )
+    qr.add_data(url)
+    qr.make(fit=True)
+    
+    img = qr.make_image(fill_color="black", back_color="white")
+    
+    # Convert to base64
+    buffer = BytesIO()
+    img.save(buffer, format='PNG')
+    img_str = base64.b64encode(buffer.getvalue()).decode()
+    return img_str
+
+def print_qr_code_terminal(url):
+    """Print QR code as text art in terminal"""
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_L,
+        box_size=1,
+        border=1,
+    )
+    qr.add_data(url)
+    qr.make(fit=True)
+    
+    # Get the QR code matrix
+    qr_matrix = qr.modules
+    
+    # Print using half-block characters (2 QR rows per terminal line)
+    for i in range(0, len(qr_matrix), 2):
+        line = ""
+        for j in range(len(qr_matrix[0])):
+            top = qr_matrix[i][j] if i < len(qr_matrix) else False
+            bottom = qr_matrix[i+1][j] if i+1 < len(qr_matrix) else False
+            
+            if top and bottom:
+                line += "█"
+            elif top:
+                line += "▀"
+            elif bottom:
+                line += "▄"
+            else:
+                line += " "
+        print(line)
 
 def load_quiz_data(quiz_name=None):
     """Load quiz data from JSON file"""
@@ -54,43 +121,73 @@ def get_available_quizzes():
     quizzes.sort(key=lambda x: x['name'])
     return quizzes
 
+def has_inline_blank(question_text):
+    """Check if question text contains inline blank marker"""
+    return '___blank___' in question_text or '[blank]' in question_text
+
+def is_true_false_question(options):
+    """Check if question is a True/False question"""
+    if not options or len(options) != 2:
+        return False
+    
+    values = [str(v).lower().strip() for v in options.values()]
+    return set(values) == {'true', 'false'}
+
 def shuffle_quiz_data(quiz_data):
     """
     Create a shuffled copy of quiz data with:
     1. Questions shuffled
-    2. Answer options shuffled (for multiple choice)
+    2. Answer options shuffled (for multiple choice and multiple answer)
+    Note: True/False questions are NOT shuffled to maintain True, False order
     """
     shuffled_data = copy.deepcopy(quiz_data)
     
     # Shuffle questions
     random.shuffle(shuffled_data['questions'])
     
-    # Shuffle answer options within each multiple choice question
+    # Shuffle answer options within each multiple choice or multiple answer question
     for question in shuffled_data['questions']:
-        if question.get('type') == 'multiple_choice':
+        if question.get('type') in ['multiple_choice', 'multiple_answer']:
             options = question.get('options', {})
+            
+            # Check if this is a True/False question - if so, don't shuffle
+            if is_true_false_question(options):
+                continue
             
             # Create a list of (key, value) pairs
             option_items = list(options.items())
             
-            # Find which option is the correct answer
-            correct_answer_text = options.get(question.get('correct_answer'))
+            # Get correct answer(s)
+            correct_answer = question.get('correct_answer')
+            
+            # For multiple_choice, find the correct answer text
+            # For multiple_answer, find all correct answer texts
+            if question.get('type') == 'multiple_choice':
+                correct_answer_texts = [options.get(correct_answer)]
+            else:  # multiple_answer
+                if isinstance(correct_answer, list):
+                    correct_answer_texts = [options.get(ans) for ans in correct_answer]
+                else:
+                    correct_answer_texts = [options.get(correct_answer)]
             
             # Shuffle the options
             random.shuffle(option_items)
             
             # Rebuild the options dict with new indices
             new_options = {}
-            new_correct_index = None
+            new_correct_indices = []
             for new_index, (old_key, value) in enumerate(option_items):
                 new_options[str(new_index)] = value
-                # Track the new index of the correct answer
-                if value == correct_answer_text:
-                    new_correct_index = str(new_index)
+                # Track the new index of correct answer(s)
+                if value in correct_answer_texts:
+                    new_correct_indices.append(str(new_index))
             
-            # Update the question with shuffled options and new correct answer index
+            # Update the question with shuffled options and new correct answer index/indices
             question['options'] = new_options
-            question['correct_answer'] = new_correct_index
+            if question.get('type') == 'multiple_choice':
+                question['correct_answer'] = new_correct_indices[0] if new_correct_indices else None
+            else:  # multiple_answer
+                question['correct_answer'] = new_correct_indices
     
     return shuffled_data
 
@@ -181,6 +278,10 @@ def quiz():
         display_total = total_questions
         phase = "Main"
     
+    # Determine if this is an inline fill-in-the-blank
+    is_inline_blank = (current_q.get('type') == 'fill_in_the_blank' and 
+                       has_inline_blank(current_q.get('question', '')))
+    
     session.modified = True
     return render_template('quiz.html',
                          quiz_data=shuffled_quiz,
@@ -188,7 +289,8 @@ def quiz():
                          question_num=question_num,
                          total_questions=display_total,
                          phase=phase,
-                         question_type=current_q.get('type', 'multiple_choice'))
+                         question_type=current_q.get('type', 'multiple_choice'),
+                         is_inline_blank=is_inline_blank)
 
 @app.route('/submit_answer', methods=['POST'])
 def submit_answer():
@@ -218,16 +320,47 @@ def submit_answer():
     
     current_q = shuffled_quiz['questions'][actual_q_index]
     correct_answer = current_q.get('correct_answer')
+    question_type = current_q.get('type', 'multiple_choice')
     
-    # Handle both string and list answers (for fill-in-the-blank)
-    if isinstance(correct_answer, list):
-        is_correct = selected_answer.strip().lower() in [ans.lower() for ans in correct_answer]
+    # Handle different answer types
+    if question_type == 'multiple_answer':
+        # For multiple answer, selected_answer should be a list
+        if not isinstance(selected_answer, list):
+            selected_answer = [selected_answer] if selected_answer else []
+        if not isinstance(correct_answer, list):
+            correct_answer = [correct_answer]
+        
+        # Check if sets match (order doesn't matter)
+        is_correct = set(selected_answer) == set(correct_answer)
+    elif isinstance(correct_answer, list):
+        # For fill-in-the-blank with multiple acceptable answers
+        is_correct = selected_answer in correct_answer
     else:
+        # For single-answer multiple choice
         is_correct = selected_answer == correct_answer
     
     # Store answer
     if 'answers' not in session:
         session['answers'] = {}
+    
+    # Get correct answer text for display
+    if question_type in ['multiple_choice', 'multiple_answer']:
+        if question_type == 'multiple_answer':
+            if isinstance(correct_answer, list):
+                correct_text = ', '.join([current_q['options'][ans] for ans in correct_answer])
+            else:
+                correct_text = current_q['options'][correct_answer]
+            
+            if isinstance(selected_answer, list):
+                selected_text = ', '.join([current_q['options'][ans] for ans in selected_answer]) if selected_answer else 'None selected'
+            else:
+                selected_text = current_q['options'][selected_answer] if selected_answer else 'None selected'
+        else:
+            correct_text = current_q['options'][correct_answer]
+            selected_text = current_q['options'][selected_answer] if selected_answer else 'None selected'
+    else:
+        correct_text = correct_answer if isinstance(correct_answer, str) else ', '.join(correct_answer)
+        selected_text = selected_answer
     
     # Get existing answer data if it exists
     existing_answer = session['answers'].get(str(actual_q_index), {})
@@ -237,11 +370,13 @@ def submit_answer():
     
     # Store/update answer with retry information
     session['answers'][str(actual_q_index)] = {
-        'selected': selected_answer,
-        'correct': correct_answer,
+        'selected': selected_text,
+        'selected_key': selected_answer,
+        'correct': correct_text,
+        'correct_key': correct_answer,
         'is_correct': is_correct,
         'question': current_q['question'],
-        'question_type': current_q.get('type', 'multiple_choice'),
+        'question_type': question_type,
         'was_retried': was_retried,
         'first_attempt_correct': existing_answer.get('first_attempt_correct', is_correct and not is_retry)
     }
@@ -265,14 +400,6 @@ def submit_answer():
             session['missed_questions'] = missed
     
     session.modified = True
-    
-    # Get correct answer text for display
-    if current_q.get('type') == 'multiple_choice':
-        correct_text = current_q['options'][correct_answer]
-        selected_text = current_q['options'][selected_answer]
-    else:
-        correct_text = correct_answer if isinstance(correct_answer, str) else ', '.join(correct_answer)
-        selected_text = selected_answer
     
     response_data = {
         'is_correct': is_correct,
@@ -333,8 +460,30 @@ def results():
 @app.route('/restart')
 def restart():
     """Restart the quiz"""
+    # Save the selected quiz before clearing
+    selected_quiz = session.get('selected_quiz')
+    
+    # Clear session
     session.clear()
-    return redirect(url_for('selector'))
+    
+    # Restore the selected quiz and reinitialize
+    if selected_quiz:
+        session['selected_quiz'] = selected_quiz  # ← Fixed this line
+        session['current_question'] = 0
+        session['score'] = 0
+        session['answers'] = {}
+        session['missed_questions'] = []
+        session['retry_mode'] = False
+        session['retry_round'] = 0
+        session['start_time'] = datetime.now().isoformat()
+        
+        # Shuffle and store quiz data
+        quiz_data = load_quiz_data(selected_quiz)
+        if quiz_data:
+            shuffled_quiz = shuffle_quiz_data(quiz_data)
+            session['shuffled_quiz'] = shuffled_quiz
+    
+    return redirect(url_for('quiz'))
 
 @app.route('/api/quiz_data')
 def api_quiz_data():
@@ -395,13 +544,25 @@ if __name__ == '__main__':
         print(f"  - {quiz['title']} ({quiz['filename']})")
     print("="*60)
     
-    import socket
-    hostname = socket.gethostname()
-    local_ip = socket.gethostbyname(hostname)
+    # Get local IP
+    local_ip = get_local_ip()
+    network_url = f"http://{local_ip}:5000"
     
+    # Generate and display QR code
+    print("\n" + "="*60)
+    print("📱 SCAN THIS QR CODE TO ACCESS ON YOUR PHONE:")
+    print("="*60)
+    
+    print_qr_code_terminal(network_url)
+    
+    print("="*60)
+    print(f"Network URL: {network_url}")
+    print("="*60 + "\n")
+    
+    print("="*60)
     print(f"Quiz available at:")
     print(f"  Local:    http://localhost:5000")
-    print(f"  Network:  http://{local_ip}:5000")
+    print(f"  Network:  {network_url}")
     print("="*60 + "\n")
     
     app.run(host='0.0.0.0', port=5000, debug=True)

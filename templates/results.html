@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quiz Results - Data Types in JavaScript</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- Highlight.js CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
 </head>
 <body>
     <div class="container">
@@ -73,7 +75,7 @@
                             <div class="review-item {% if answer_data.first_attempt_correct %}correct{% else %}incorrect{% endif %}{% if answer_data.was_retried %} retried{% endif %}">
                                 <div class="review-question">
                                     <span class="question-num">Q{{ q_index + 1 }}.</span>
-                                    <span class="question-text">{{ answer_data.question }}</span>
+                                    <span class="question-text" data-user-answer="{{ answer_data.selected }}">{{ answer_data.question | safe }}</span>
                                     {% if answer_data.first_attempt_correct %}
                                         <span class="result-badge badge-correct">
                                             ✓ Correct (First Try)
@@ -83,6 +85,12 @@
                                             ✓ Correct (After Retry)
                                         </span>
                                     {% endif %}
+                                </div>
+                                <div class="review-answers">
+                                    <div class="correct-answer-review">
+                                        <strong>Your answer:</strong>
+                                        <span>{{ answer_data.selected | safe }}</span>
+                                    </div>
                                 </div>
                             </div>
                         {% endif %}
@@ -101,5 +109,47 @@
             </div>
         </div>
     </div>
+
+    <!-- Highlight.js JavaScript -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script>
+        function highlightCode() {
+            document.querySelectorAll('pre code').forEach(function(block) {
+                hljs.highlightElement(block);
+            });
+        }
+        
+        document.addEventListener('DOMContentLoaded', highlightCode);
+        highlightCode();
+
+        // Replace ___blank___ with filled-in answers
+        function fillInBlanks() {
+            const questionElements = document.querySelectorAll('.question-text');
+            
+            questionElements.forEach((element) => {
+                let questionText = element.innerHTML;
+                
+                // Check if this is a fill-in-the-blank question
+                if (questionText.includes('___blank___') || questionText.includes('[blank]')) {
+                    // Get the user's answer from the data attribute
+                    const userAnswer = element.getAttribute('data-user-answer');
+                    
+                    if (userAnswer) {
+                        // Replace blank with filled-in answer
+                        questionText = questionText.replace(
+                            /___blank___|\[blank\]/gi,
+                            `<span class="filled-blank">${userAnswer}</span>`
+                        );
+                        
+                        element.innerHTML = questionText;
+                    }
+                }
+            });
+        }
+        
+        // Call fillInBlanks after DOM is loaded
+        document.addEventListener('DOMContentLoaded', fillInBlanks);
+        fillInBlanks();
+    </script>
 </body>
 </html>

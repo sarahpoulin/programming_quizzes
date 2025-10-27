@@ -1,6 +1,53 @@
 /* ============================================
-   GLOBAL STYLES & VARIABLES
+   CODE BLOCKS & TEXT FORMATTING
    ============================================ */
+
+pre {
+    margin: 15px 0;
+    border-radius: 8px;
+    overflow-x: auto;
+    background: #282c34;
+}
+
+pre code {
+    display: block !important;
+    padding: 12px 16px !important;
+    border-left: 4px solid var(--primary-color);
+    font-family: 'Courier New', 'Monaco', monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre-wrap !important;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+    background: #282c34 !important;
+    color: #abb2bf !important;
+}
+
+/* Highlight.js color overrides for Atom One Dark theme */
+pre code .hljs-string { color: #98c379 !important; }
+pre code .hljs-number { color: #d19a66 !important; }
+pre code .hljs-literal { color: #56b6c2 !important; }
+pre code .hljs-attr { color: #e06c75 !important; }
+pre code .hljs-title { color: #61afef !important; }
+pre code .hljs-keyword { color: #c678dd !important; }
+pre code .hljs-function { color: #61afef !important; }
+pre code .hljs-built_in { color: #61afef !important; }
+pre code .hljs-params { color: #abb2bf !important; }
+
+code {
+    background: #f3f4f6;
+    color: #1f2937;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'Courier New', 'Monaco', monospace;
+    font-size: 13px;
+}
+
+i {
+    font-style: italic;
+    color: var(--primary-color);
+    font-weight: 500;
+}
 
 :root {
     --primary-color: #2563eb;
@@ -178,6 +225,13 @@ body {
     flex-shrink: 0;
 }
 
+/* Checkbox specific styling */
+.option-checkbox {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+}
+
 .option-text {
     font-size: 15px;
     color: var(--text-dark);
@@ -207,6 +261,44 @@ body {
     outline: none;
     border-color: var(--primary-color);
     box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* Inline fill-in-the-blank styles */
+.inline-blank-container {
+    display: inline-block;
+    position: relative;
+}
+
+.inline-blank-input {
+    display: inline-block;
+    min-width: 150px;
+    padding: 4px 8px;
+    border: 2px solid var(--success-color);
+    border-radius: 4px;
+    font-size: inherit;
+    font-family: inherit;
+    background-color: #f0f8ff;
+    transition: all 0.3s ease;
+}
+
+.inline-blank-input:focus {
+    outline: none;
+    border-color: #059669;
+    background-color: #fff;
+    box-shadow: 0 0 5px rgba(16, 185, 129, 0.3);
+}
+
+/* Filled-in blank display for results page */
+.filled-blank {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    background-color: rgba(16, 185, 129, 0.15);
+    color: var(--success-color);
+    border: 2px solid var(--success-color);
 }
 
 /* ============================================
@@ -536,6 +628,11 @@ body {
 .badge-incorrect {
     background: rgba(239, 68, 68, 0.2);
     color: var(--danger-color);
+}
+
+.badge-retried {
+    background: rgba(59, 130, 246, 0.2);
+    color: var(--primary-color);
 }
 
 .review-answers {
