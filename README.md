@@ -66,7 +66,7 @@ A dynamic, interactive quiz application built with Flask. Features include quest
    ```
 
 5. **Open in browser**
-   - Local: `http://localhost:5000`
+   - Local: `http://localhost:5000` (or on Mac,`http://localhost:5001`)
    - Optional: Scan the QR Code to access the quiz with your mobile device!
 
 The application will automatically detect all `quiz_data*.json` files and display them on the quiz selector page.
@@ -97,7 +97,7 @@ deactivate
 - Ensure you have at least one `quiz_data*.json` file in the project root directory
 
 **Port 5000 already in use**
-- Edit `app.py` and change `port=5000` to another port like `port=5001`
+- Edit `app.py` and change `port=5000` (at bottom of script) to another port like `port=5001`
 
 **Python not found**
 - Ensure Python is installed and added to your PATH
