@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Flask Quiz Application - Data Types in JavaScript
+Flask Quiz Application - JavaScript
 Includes retry mechanism for incorrectly answered questions
 Supports multiple retries until all questions are answered correctly
 Shuffles questions and answer options on each quiz start
@@ -289,6 +289,7 @@ def quiz():
     
     session.modified = True
     return render_template('quiz.html',
+                         quiz_title=shuffled_quiz.get('title', 'Quiz'),
                          quiz_data=shuffled_quiz,
                          current_question=current_q,
                          question_num=question_num,
@@ -473,7 +474,7 @@ def restart():
     
     # Restore the selected quiz and reinitialize
     if selected_quiz:
-        session['selected_quiz'] = selected_quiz  # ← Fixed this line
+        session['selected_quiz'] = selected_quiz
         session['current_question'] = 0
         session['score'] = 0
         session['answers'] = {}
