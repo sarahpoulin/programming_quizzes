@@ -371,6 +371,9 @@ def submit_answer():
     # Get existing answer data if it exists
     existing_answer = session['answers'].get(str(actual_q_index), {})
     
+    # Check if this question has been answered before
+    is_first_attempt = str(actual_q_index) not in session['answers']
+    
     # Track if this was a retry attempt
     was_retried = existing_answer.get('was_retried', False) or is_retry
     
@@ -384,25 +387,33 @@ def submit_answer():
         'question': current_q['question'],
         'question_type': question_type,
         'was_retried': was_retried,
-        'first_attempt_correct': existing_answer.get('first_attempt_correct', is_correct and not is_retry)
+        'first_attempt_correct': existing_answer.get('first_attempt_correct', is_correct and is_first_attempt)
     }
     
     # Track score and missed questions
-    if not is_retry:
+    # IMPORTANT: Only increment score on FIRST attempt if correct
+    if is_first_attempt:
         if is_correct:
             session['score'] = session.get('score', 0) + 1
         else:
+            # Add to missed questions for retry
             missed = session.get('missed_questions', [])
             if actual_q_index not in missed:
                 missed.append(actual_q_index)
             session['missed_questions'] = missed
     else:
-        # In retry mode, update missed questions list
+        # This is a retry - don't change the score, just update missed list
         if is_correct:
             # Remove from missed questions if now correct
             missed = session.get('missed_questions', [])
             if actual_q_index in missed:
                 missed.remove(actual_q_index)
+            session['missed_questions'] = missed
+        else:
+            # Still incorrect on retry - keep in missed questions
+            missed = session.get('missed_questions', [])
+            if actual_q_index not in missed:
+                missed.append(actual_q_index)
             session['missed_questions'] = missed
     
     session.modified = True
