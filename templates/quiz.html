@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ quiz_title }}</title>
+    <title id="pageTitle">Quiz</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <!-- Highlight.js CSS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
@@ -11,10 +11,10 @@
 <body>
     <div class="container">
         <div class="quiz-header">
-            <h1>{{ quiz_title }}</h1>
+            <h1 id="quizTitle">Loading...</h1>
             <div class="progress-info">
-                <span class="phase-badge" id="phaseBadge">{{ phase }}</span>
-                <span class="question-counter">Question {{ question_num }} of {{ total_questions }}</span>
+                <span class="phase-badge" id="phaseBadge">Main</span>
+                <span class="question-counter" id="questionCounter">Question 1 of 1</span>
             </div>
             <div class="progress-bar">
                 <div class="progress-fill" id="progressFill"></div>
@@ -23,35 +23,11 @@
 
         <div class="quiz-content">
             <div class="question-section">
-                <h2 class="question-text" id="questionText">{{ current_question.question | safe }}</h2>
+                <h2 class="question-text" id="questionText">Loading question...</h2>
             </div>
 
             <form id="answerForm" class="answer-section">
-                {% if question_type == 'multiple_choice' %}
-                    <div class="options">
-                        {% for index, option in current_question.options.items() %}
-                            <label class="option-label">
-                                <input type="radio" name="answer" value="{{ index }}" class="option-input">
-                                <span class="option-text">{{ option | safe }}</span>
-                            </label>
-                        {% endfor %}
-                    </div>
-                {% elif question_type == 'multiple_answer' %}
-                    <div class="options">
-                        {% for index, option in current_question.options.items() %}
-                            <label class="option-label">
-                                <input type="checkbox" name="answer" value="{{ index }}" class="option-input option-checkbox">
-                                <span class="option-text">{{ option | safe }}</span>
-                            </label>
-                        {% endfor %}
-                    </div>
-                {% elif is_inline_blank %}
-                    <!-- Inline blank will be rendered by JavaScript -->
-                {% else %}
-                    <div class="fill-in-blank">
-                        <input type="text" id="blankInput" name="answer" class="blank-input" placeholder="Type your answer here..." autocomplete="off">
-                    </div>
-                {% endif %}
+                <!-- Answer options will be populated by JavaScript -->
             </form>
 
             <div id="feedback" class="feedback hidden">
@@ -66,73 +42,217 @@
     </div>
 
     <script>
-        const submitBtn = document.getElementById('submitBtn');
-        const nextBtn = document.getElementById('nextBtn');
-        const answerForm = document.getElementById('answerForm');
-        const feedback = document.getElementById('feedback');
-        const feedbackContent = document.getElementById('feedbackContent');
-        const progressFill = document.getElementById('progressFill');
-        const questionNum = {{ question_num }};
-        const totalQuestions = {{ total_questions }};
-        const questionType = '{{ question_type }}';
-        const isInlineBlank = {{ 'true' if is_inline_blank else 'false' }};
-        
+        let quizState = null;
+        let shuffledQuiz = null;
         let answered = false;
         let inlineInput = null;
 
-        // Update progress bar
-        function updateProgress() {
-            const percentage = (questionNum / totalQuestions) * 100;
-            progressFill.style.width = percentage + '%';
+        // Load quiz data on page load
+        async function loadQuizData() {
+            try {
+                // Get shuffled quiz from localStorage
+                const shuffledQuizJSON = localStorage.getItem('currentShuffledQuiz');
+                if (!shuffledQuizJSON) {
+                    alert('No quiz data found. Returning to quiz selector.');
+                    window.location.href = '/';
+                    return;
+                }
+
+                shuffledQuiz = JSON.parse(shuffledQuizJSON);
+
+                // Get current quiz state from server
+                const response = await fetch('/api/get_quiz_state', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ shuffledQuiz: shuffledQuiz })
+                });
+
+                const data = await response.json();
+
+                // Check for redirects
+                if (data.redirect) {
+                    if (data.redirect.includes('results')) {
+                        // Store quiz data for results page
+                        localStorage.setItem('resultsQuizData', JSON.stringify(data.quizData || shuffledQuiz));
+                    }
+                    window.location.href = data.redirect;
+                    return;
+                }
+
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                    window.location.href = '/';
+                    return;
+                }
+
+                quizState = data;
+                renderQuizQuestion();
+
+            } catch (error) {
+                console.error('Error loading quiz:', error);
+                alert('Error loading quiz: ' + error.message);
+                window.location.href = '/';
+            }
         }
 
-        updateProgress();
+        function renderQuizQuestion() {
+            // Update header
+            document.getElementById('quizTitle').textContent = quizState.quiz_title;
+            document.getElementById('phaseBadge').textContent = quizState.phase;
+            document.getElementById('questionCounter').textContent = `Question ${quizState.question_num} of ${quizState.total_questions}`;
+            document.getElementById('pageTitle').textContent = quizState.quiz_title;
 
-        // Handle inline fill-in-the-blank
-        if (isInlineBlank) {
+            // Update progress bar
+            const percentage = (quizState.question_num / quizState.total_questions) * 100;
+            document.getElementById('progressFill').style.width = percentage + '%';
+
+            // Update question text
+            document.getElementById('questionText').innerHTML = quizState.current_question.question;
+
+            // Render answer options based on question type
+            const answerForm = document.getElementById('answerForm');
+            answerForm.innerHTML = '';
+
+            if (quizState.question_type === 'multiple_choice') {
+                renderMultipleChoice(answerForm, quizState.current_question.options);
+            } else if (quizState.question_type === 'multiple_answer') {
+                renderMultipleAnswer(answerForm, quizState.current_question.options);
+            } else if (quizState.is_inline_blank) {
+                renderInlineBlank();
+            } else {
+                renderFillInBlank(answerForm);
+            }
+
+            // Highlight code blocks
+            highlightCode();
+        }
+
+        function renderMultipleChoice(form, options) {
+            const optionsDiv = document.createElement('div');
+            optionsDiv.className = 'options';
+
+            for (const [index, option] of Object.entries(options)) {
+                const label = document.createElement('label');
+                label.className = 'option-label';
+
+                const input = document.createElement('input');
+                input.type = 'radio';
+                input.name = 'answer';
+                input.value = index;
+                input.className = 'option-input';
+
+                const span = document.createElement('span');
+                span.className = 'option-text';
+                span.innerHTML = option;
+
+                label.appendChild(input);
+                label.appendChild(span);
+                optionsDiv.appendChild(label);
+            }
+
+            form.appendChild(optionsDiv);
+        }
+
+        function renderMultipleAnswer(form, options) {
+            const optionsDiv = document.createElement('div');
+            optionsDiv.className = 'options';
+
+            for (const [index, option] of Object.entries(options)) {
+                const label = document.createElement('label');
+                label.className = 'option-label';
+
+                const input = document.createElement('input');
+                input.type = 'checkbox';
+                input.name = 'answer';
+                input.value = index;
+                input.className = 'option-input option-checkbox';
+
+                const span = document.createElement('span');
+                span.className = 'option-text';
+                span.innerHTML = option;
+
+                label.appendChild(input);
+                label.appendChild(span);
+                optionsDiv.appendChild(label);
+            }
+
+            form.appendChild(optionsDiv);
+        }
+
+        function renderInlineBlank() {
             const questionText = document.getElementById('questionText');
             let questionHTML = questionText.innerHTML;
-            
+
             // Replace ___blank___ or [blank] with an input field
-            questionHTML = questionHTML.replace(/___blank___|\[blank\]/gi, 
+            questionHTML = questionHTML.replace(/___blank___|\[blank\]/gi,
                 '<span class="inline-blank-container"><input type="text" class="inline-blank-input" id="inlineBlankInput" autocomplete="off"></span>');
-            
+
             questionText.innerHTML = questionHTML;
             inlineInput = document.getElementById('inlineBlankInput');
-            
+
             if (inlineInput) {
                 // Focus on the input field
                 setTimeout(() => inlineInput.focus(), 100);
-                
+
                 // Allow Enter key to submit
                 inlineInput.addEventListener('keypress', (e) => {
                     if (e.key === 'Enter') {
                         e.preventDefault();
-                        submitBtn.click();
+                        document.getElementById('submitBtn').click();
                     }
                 });
             }
         }
 
+        function renderFillInBlank(form) {
+            const div = document.createElement('div');
+            div.className = 'fill-in-blank';
+
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.id = 'blankInput';
+            input.name = 'answer';
+            input.className = 'blank-input';
+            input.placeholder = 'Type your answer here...';
+            input.autocomplete = 'off';
+
+            // Allow Enter key to submit
+            input.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    document.getElementById('submitBtn').click();
+                }
+            });
+
+            div.appendChild(input);
+            form.appendChild(div);
+
+            setTimeout(() => input.focus(), 100);
+        }
+
         // Submit answer
-        submitBtn.addEventListener('click', async () => {
+        document.getElementById('submitBtn').addEventListener('click', async () => {
+            if (answered) return;
+
             let selectedAnswer;
-            
-            if (questionType === 'multiple_choice') {
-                selectedAnswer = document.querySelector('input[name="answer"]:checked');
-                if (!selectedAnswer) {
+
+            if (quizState.question_type === 'multiple_choice') {
+                const selected = document.querySelector('input[name="answer"]:checked');
+                if (!selected) {
                     alert('Please select an answer');
                     return;
                 }
-                selectedAnswer = selectedAnswer.value;
-            } else if (questionType === 'multiple_answer') {
+                selectedAnswer = selected.value;
+            } else if (quizState.question_type === 'multiple_answer') {
                 const checkedBoxes = document.querySelectorAll('input[name="answer"]:checked');
                 if (checkedBoxes.length === 0) {
                     alert('Please select at least one answer');
                     return;
                 }
                 selectedAnswer = Array.from(checkedBoxes).map(cb => cb.value);
-            } else if (isInlineBlank) {
+            } else if (quizState.is_inline_blank) {
                 selectedAnswer = inlineInput ? inlineInput.value.trim() : '';
                 if (!selectedAnswer) {
                     alert('Please enter an answer');
@@ -152,7 +272,10 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ answer: selectedAnswer })
+                    body: JSON.stringify({
+                        answer: selectedAnswer,
+                        quizData: shuffledQuiz
+                    })
                 });
 
                 const data = await response.json();
@@ -176,15 +299,15 @@
                     `;
                 }
 
-                feedbackContent.innerHTML = feedbackHTML;
-                feedback.classList.remove('hidden');
-                
+                document.getElementById('feedbackContent').innerHTML = feedbackHTML;
+                document.getElementById('feedback').classList.remove('hidden');
+
                 answered = true;
-                submitBtn.classList.add('hidden');
-                nextBtn.classList.remove('hidden');
-                answerForm.style.pointerEvents = 'none';
-                answerForm.style.opacity = '0.6';
-                
+                document.getElementById('submitBtn').classList.add('hidden');
+                document.getElementById('nextBtn').classList.remove('hidden');
+                document.getElementById('answerForm').style.pointerEvents = 'none';
+                document.getElementById('answerForm').style.opacity = '0.6';
+
                 // Disable inline input if it exists
                 if (inlineInput) {
                     inlineInput.disabled = true;
@@ -197,7 +320,7 @@
         });
 
         // Next question
-        nextBtn.addEventListener('click', async () => {
+        document.getElementById('nextBtn').addEventListener('click', async () => {
             try {
                 await fetch('/next_question', {
                     method: 'POST'
@@ -208,46 +331,17 @@
             }
         });
 
-        // Allow Enter key to submit for regular fill-in-the-blank
-        if (questionType === 'fill_in_the_blank' && !isInlineBlank) {
-            const blankInput = document.getElementById('blankInput');
-            if (blankInput) {
-                blankInput.addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter') {
-                        e.preventDefault();
-                        submitBtn.click();
-                    }
-                });
-                
-                // Also prevent form submission on Enter
-                answerForm.addEventListener('submit', (e) => {
-                    e.preventDefault();
-                    submitBtn.click();
-                });
-            }
-        }
-    </script>
-
-    <!-- Highlight.js JavaScript -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-    <script>
-        // Highlight code blocks
         function highlightCode() {
             document.querySelectorAll('pre code').forEach((block) => {
                 hljs.highlightElement(block);
             });
         }
-        
-        // Call on page load
-        document.addEventListener('DOMContentLoaded', highlightCode);
-        highlightCode();
-        
-        // Also call after next question loads
-        if (nextBtn) {
-            nextBtn.addEventListener('click', () => {
-                setTimeout(highlightCode, 300);
-            });
-        }
+
+        // Load quiz on page load
+        document.addEventListener('DOMContentLoaded', loadQuizData);
     </script>
+
+    <!-- Highlight.js JavaScript -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 </body>
 </html>

@@ -436,6 +436,22 @@ body {
     border-color: var(--text-dark);
 }
 
+.btn-danger {
+    background: var(--danger-color);
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #dc2626;
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+.btn-small {
+    padding: 8px 12px;
+    font-size: 14px;
+}
+
 .btn-lg {
     padding: 14px 28px;
     font-size: 16px;
@@ -745,6 +761,10 @@ body {
     color: var(--text-light);
 }
 
+/* ============================================
+   SELECTOR PAGE
+   ============================================ */
+
 .selector-header {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
@@ -768,6 +788,58 @@ body {
     padding: 40px 25px;
 }
 
+/* Upload Section */
+.upload-section {
+    background: var(--neutral-bg);
+    border: 2px dashed var(--neutral-border);
+    border-radius: 12px;
+    padding: 30px;
+    margin-bottom: 40px;
+    text-align: center;
+}
+
+.upload-section h3 {
+    margin-bottom: 20px;
+    color: var(--text-dark);
+    font-size: 18px;
+}
+
+.upload-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    flex-wrap: wrap;
+    margin-bottom: 15px;
+}
+
+.file-input {
+    display: none;
+}
+
+.file-name {
+    color: var(--text-light);
+    font-size: 14px;
+    font-style: italic;
+}
+
+.upload-hint {
+    color: var(--text-light);
+    font-size: 14px;
+    margin: 0;
+}
+
+/* Quizzes Section */
+.quizzes-section {
+    margin-top: 30px;
+}
+
+.quizzes-section h3 {
+    margin-bottom: 20px;
+    color: var(--text-dark);
+    font-size: 18px;
+}
+
 .quizzes-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -781,7 +853,6 @@ body {
     border-radius: 12px;
     padding: 25px;
     text-align: center;
-    cursor: pointer;
     transition: all 0.3s ease;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
@@ -815,8 +886,43 @@ body {
     margin-bottom: 20px;
 }
 
-.quiz-card .btn {
-    width: 100%;
+.quiz-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    align-items: center;
+}
+
+.quiz-actions .btn {
+    flex: 1;
+}
+
+.quiz-actions .btn-small {
+    flex: 0;
+    padding: 8px 12px;
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-light);
+}
+
+.empty-icon {
+    font-size: 80px;
+    margin-bottom: 20px;
+    opacity: 0.5;
+}
+
+.empty-state p {
+    font-size: 16px;
+    margin-bottom: 10px;
+}
+
+.empty-hint {
+    font-size: 14px;
+    font-style: italic;
 }
 
 /* ============================================
@@ -888,7 +994,19 @@ body {
         padding: 25px 20px;
     }
 
+    .upload-section {
+        padding: 20px;
+    }
+
     .quizzes-grid {
         grid-template-columns: 1fr;
+    }
+
+    .quiz-actions {
+        flex-direction: column;
+    }
+
+    .quiz-actions .btn {
+        width: 100%;
     }
 }

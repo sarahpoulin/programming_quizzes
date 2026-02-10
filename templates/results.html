@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quiz Results - Data Types in JavaScript</title>
+    <title>Quiz Results</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <!-- Highlight.js CSS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
@@ -15,141 +15,215 @@
             <p class="subtitle">Here's how you did:</p>
         </div>
 
-        <div class="results-content">
-            <!-- Score Summary -->
-            <div class="score-summary">
-                <div class="score-circle">
-                    <div class="score-percentage">{{ percentage }}%</div>
-                    <div class="score-fraction">{{ score }}/{{ total }}</div>
-                </div>
-                
-                <div class="score-text">
-                    {% if percentage >= 80 %}
-                        <h2>Excellent! 🌟</h2>
-                        <p>You've mastered this material!</p>
-                    {% elif percentage >= 60 %}
-                        <h2>Good Job! 👍</h2>
-                        <p>You have a solid understanding.</p>
-                    {% elif percentage >= 40 %}
-                        <h2>Keep Learning 📚</h2>
-                        <p>You're making progress!</p>
-                    {% else %}
-                        <h2>Try Again 💪</h2>
-                        <p>Review the material and give it another shot!</p>
-                    {% endif %}
-                </div>
-            </div>
-
-            <!-- Time Taken -->
-            {% if time_taken %}
-                <div class="time-info">
-                    <span class="label">⏱️ Time Taken:</span>
-                    <span class="value">
-                        {% set seconds = time_taken.total_seconds() | int %}
-                        {% if seconds >= 3600 %}
-                            {{ (seconds // 3600) }}h {{ ((seconds % 3600) // 60) }}m {{ (seconds % 60) }}s
-                        {% elif seconds >= 60 %}
-                            {{ (seconds // 60) }}m {{ (seconds % 60) }}s
-                        {% else %}
-                            {{ seconds }}s
-                        {% endif %}
-                    </span>
-                </div>
-            {% endif %}
-
-            <!-- Retry Results -->
-            {% if retry_round > 0 %}
-                <div class="retry-stats">
-                    <h3>📋 Retry Information</h3>
-                    <p>You completed <strong>{{ retry_round }}</strong> retry round(s) to get all questions correct.</p>
-                </div>
-            {% endif %}
-
-            <!-- Detailed Answer Review -->
-            <div class="answer-review">
-                <h3>📝 Answer Review</h3>
-                <div class="review-list">
-                    {% for q_index in range(quiz_data.questions|length) %}
-                        {% if q_index in answers %}
-                            {% set answer_data = answers[q_index] %}
-                            <div class="review-item {% if answer_data.first_attempt_correct %}correct{% else %}incorrect{% endif %}{% if answer_data.was_retried %} retried{% endif %}">
-                                <div class="review-question">
-                                    <span class="question-num">Q{{ q_index + 1 }}.</span>
-                                    <span class="question-text" data-user-answer="{{ answer_data.selected }}">{{ answer_data.question | safe }}</span>
-                                    {% if answer_data.first_attempt_correct %}
-                                        <span class="result-badge badge-correct">
-                                            ✓ Correct (First Try)
-                                        </span>
-                                    {% else %}
-                                        <span class="result-badge badge-retried">
-                                            ✓ Correct (After Retry)
-                                        </span>
-                                    {% endif %}
-                                </div>
-                                <div class="review-answers">
-                                    <div class="correct-answer-review">
-                                        <strong>Your answer:</strong>
-                                        <span>{{ answer_data.selected | safe }}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        {% endif %}
-                    {% endfor %}
-                </div>
-            </div>
-
-            <!-- Action Buttons -->
-            <div class="results-actions">
-                <a href="{{ url_for('restart') }}" class="btn btn-primary btn-lg">
-                    🔄 Retake Quiz
-                </a>
-                <a href="{{ url_for('selector') }}" class="btn btn-secondary btn-lg">
-                    📚 Select Different Quiz
-                </a>
-            </div>
+        <div class="results-content" id="resultsContent">
+            <p>Loading results...</p>
         </div>
     </div>
 
-    <!-- Highlight.js JavaScript -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script>
-        function highlightCode() {
-            document.querySelectorAll('pre code').forEach(function(block) {
-                hljs.highlightElement(block);
-            });
-        }
-        
-        document.addEventListener('DOMContentLoaded', highlightCode);
-        highlightCode();
+        async function loadResults() {
+            try {
+                // Get quiz data from localStorage
+                const quizDataJSON = localStorage.getItem('resultsQuizData') || localStorage.getItem('currentShuffledQuiz');
+                if (!quizDataJSON) {
+                    alert('No quiz data found');
+                    window.location.href = '/';
+                    return;
+                }
 
-        // Replace ___blank___ with filled-in answers
+                const quizData = JSON.parse(quizDataJSON);
+
+                // Get results data from server
+                const response = await fetch('/api/get_results_data', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ quizData: quizData })
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                    window.location.href = '/';
+                    return;
+                }
+
+                renderResults(quizData, data);
+
+            } catch (error) {
+                console.error('Error loading results:', error);
+                alert('Error loading results: ' + error.message);
+                window.location.href = '/';
+            }
+        }
+
+        function renderResults(quizData, resultsData) {
+            const { score, total, percentage, answers, time_taken_seconds, retry_round } = resultsData;
+
+            let html = `
+                <!-- Score Summary -->
+                <div class="score-summary">
+                    <div class="score-circle">
+                        <div class="score-percentage">${percentage}%</div>
+                        <div class="score-fraction">${score}/${total}</div>
+                    </div>
+
+                    <div class="score-text">
+                        ${percentage >= 80 ? `
+                            <h2>Excellent! 🌟</h2>
+                            <p>You've mastered this material!</p>
+                        ` : percentage >= 60 ? `
+                            <h2>Good Job! 👍</h2>
+                            <p>You have a solid understanding.</p>
+                        ` : percentage >= 40 ? `
+                            <h2>Keep Learning 📚</h2>
+                            <p>You're making progress!</p>
+                        ` : `
+                            <h2>Try Again 💪</h2>
+                            <p>Review the material and give it another shot!</p>
+                        `}
+                    </div>
+                </div>
+            `;
+
+            // Time taken
+            if (time_taken_seconds) {
+                const hours = Math.floor(time_taken_seconds / 3600);
+                const minutes = Math.floor((time_taken_seconds % 3600) / 60);
+                const seconds = time_taken_seconds % 60;
+
+                let timeStr = '';
+                if (hours > 0) {
+                    timeStr = `${hours}h ${minutes}m ${seconds}s`;
+                } else if (minutes > 0) {
+                    timeStr = `${minutes}m ${seconds}s`;
+                } else {
+                    timeStr = `${seconds}s`;
+                }
+
+                html += `
+                    <div class="time-info">
+                        <span class="label">⏱️ Time Taken:</span>
+                        <span class="value">${timeStr}</span>
+                    </div>
+                `;
+            }
+
+            // Retry stats
+            if (retry_round > 0) {
+                html += `
+                    <div class="retry-stats">
+                        <h3>📋 Retry Information</h3>
+                        <p>You completed <strong>${retry_round}</strong> retry round(s) to get all questions correct.</p>
+                    </div>
+                `;
+            }
+
+            // Answer review
+            html += `
+                <div class="answer-review">
+                    <h3>📝 Answer Review</h3>
+                    <div class="review-list">
+            `;
+
+            for (let i = 0; i < quizData.questions.length; i++) {
+                if (answers[i]) {
+                    const answer = answers[i];
+                    const correctClass = answer.first_attempt_correct ? 'correct' : 'incorrect';
+                    const retriedClass = answer.was_retried ? 'retried' : '';
+
+                    html += `
+                        <div class="review-item ${correctClass} ${retriedClass}">
+                            <div class="review-question">
+                                <span class="question-num">Q${i + 1}.</span>
+                                <span class="question-text" data-user-answer="${escapeHtml(answer.selected)}">${answer.question}</span>
+                                ${answer.first_attempt_correct ? `
+                                    <span class="result-badge badge-correct">
+                                        ✓ Correct (First Try)
+                                    </span>
+                                ` : `
+                                    <span class="result-badge badge-retried">
+                                        ✓ Correct (After Retry)
+                                    </span>
+                                `}
+                            </div>
+                            <div class="review-answers">
+                                <div class="correct-answer-review">
+                                    <strong>Your answer:</strong>
+                                    <span>${answer.selected}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+
+            html += `
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="results-actions">
+                    <a href="/restart" class="btn btn-primary btn-lg">
+                        🔄 Retake Quiz
+                    </a>
+                    <a href="/" class="btn btn-secondary btn-lg">
+                        📚 Select Different Quiz
+                    </a>
+                </div>
+            `;
+
+            document.getElementById('resultsContent').innerHTML = html;
+
+            // Fill in blanks
+            fillInBlanks();
+
+            // Highlight code
+            highlightCode();
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
         function fillInBlanks() {
             const questionElements = document.querySelectorAll('.question-text');
-            
+
             questionElements.forEach((element) => {
                 let questionText = element.innerHTML;
-                
+
                 // Check if this is a fill-in-the-blank question
                 if (questionText.includes('___blank___') || questionText.includes('[blank]')) {
                     // Get the user's answer from the data attribute
                     const userAnswer = element.getAttribute('data-user-answer');
-                    
+
                     if (userAnswer) {
                         // Replace blank with filled-in answer
                         questionText = questionText.replace(
                             /___blank___|\[blank\]/gi,
                             `<span class="filled-blank">${userAnswer}</span>`
                         );
-                        
+
                         element.innerHTML = questionText;
                     }
                 }
             });
         }
-        
-        // Call fillInBlanks after DOM is loaded
-        document.addEventListener('DOMContentLoaded', fillInBlanks);
-        fillInBlanks();
+
+        function highlightCode() {
+            document.querySelectorAll('pre code').forEach(function(block) {
+                hljs.highlightElement(block);
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', loadResults);
     </script>
+
+    <!-- Highlight.js JavaScript -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 </body>
 </html>

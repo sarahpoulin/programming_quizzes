@@ -1,126 +1,69 @@
 # Programming Fundamentals Quiz Application
 
-A dynamic, interactive quiz application built with Flask. Features include question shuffling, multiple retry attempts, detailed result analysis, and support for multiple quizzes.
+A dynamic, interactive quiz application built with Flask and JavaScript.  
+Quizzes are now managed **entirely in the browser using localStorage**, allowing users to upload, delete, and run their own custom quizzes without restarting the server.
 
-## Features
+---
 
-- 📚 **Multiple Quizzes**: Support for multiple quiz files (quiz_data1.json, quiz_data2.json, etc.)
-- 🔀 **Shuffled Questions & Answers**: Questions and answer options are randomly shuffled on each quiz start
-- 🔄 **Unlimited Retries**: Get unlimited retry rounds until all questions are answered correctly
-- 📊 **Detailed Results**: See which questions you got right on first try vs. which ones required retrying
-- ⏱️ **Time Tracking**: Tracks how long it takes to complete the quiz
-- 📱 **Responsive Design**: Works on desktop, tablet, and mobile devices
-- ✏️ **Multiple Question Types**: Supports both multiple choice and fill-in-the-blank questions
+## 🚀 What’s New (localStorage Mode)
 
-## Installation
+### 🧠 Browser-Stored Quizzes
+- Quizzes are stored in **browser localStorage**, not on the server
+- Each user can upload and manage their **own personal quizzes**
+- No server restart required when adding or removing quizzes
+
+### 📤 Upload Your Own Quizzes
+- Upload quiz JSON files directly from the quiz selector page
+- Uploaded quizzes persist in your browser until you delete them
+- Multiple quizzes can coexist side-by-side
+
+### 🗑️ Delete Quizzes Safely
+- Remove quizzes from localStorage with one click
+- Deletions affect only **your browser**, not the server or other users
+
+### 🔄 Server Still Handles Logic
+Flask continues to manage:
+- Question flow and retry rounds
+- Scoring and first-attempt tracking
+- Session state
+- Timing and results calculation
+
+The browser handles:
+- Quiz storage
+- Quiz selection
+- Quiz uploads
+
+---
+
+## ✨ Features
+
+- 📚 **Multiple Quizzes**: Upload and manage multiple quiz files
+- 🔀 **Shuffled Questions & Answers**: Randomized each time a quiz starts
+- 🔄 **Unlimited Retries**: Retry incorrect questions until all are correct
+- 📊 **Detailed Results**:
+  - First-attempt correct answers
+  - Retried questions
+  - Final score and percentage
+- ⏱️ **Time Tracking**: Tracks total quiz completion time
+- 📱 **Mobile Friendly**: Works on phones, tablets, and desktops
+- 📷 **QR Code Access**: Scan to open the quiz on your phone
+- ✏️ **Multiple Question Types**:
+  - Multiple Choice
+  - Multiple Answer
+  - Fill-in-the-Blank (including inline blanks)
+  - True / False (auto-detected)
+
+---
+
+## 📦 Installation
 
 ### Prerequisites
+- Python 3.8+
+- pip
 
-- Python 3.8 or higher
-- pip (Python package manager)
-
-### Setup Instructions
+### Setup
 
 1. **Clone the repository**
    ```bash
    git clone https://github.com/sarahpoulin/programming_quizzes.git
    cd programming_quizzes
-   ```
-
-2. **Create a virtual environment** (recommended)
-   
-   **On Windows:**
-   - If you're not sure whether python is installed:
-   ```bash
-   python --version
-   ```
-   
-   - If it's not:
-   - Go to the official Python website:
-   - 👉 https://www.python.org/downloads/windows/
-   
-   - Click "Download Python 3.x.x" (choose the latest stable release).
-   - If, after running, you get a popup that asks if you want to allow on Public and Private networks, say yes (this will allow you to be able to connect with your phone).
-    
-    After installation:
-   
-   ```bash
-   python -m venv prog_env
-   prog_env\Scripts\activate
-   ```
-   
-   **On macOS/Linux:**
-   ```bash
-   python3 -m venv prog_env
-   source prog_env/bin/activate
-   ```
-
-3. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Run the application**
-   ```bash
-   python app.py
-   ```
-
-5. **Open in browser**
-   - Local: `http://localhost:5000` (or on Mac,`http://localhost:5001`)
-   - Optional: Scan the QR Code to access the quiz with your mobile device!
-   
-   The application will automatically detect all `quiz_data*.json` files and display them on the quiz selector page.
-
-6. **Subsequent Runs**
-   - When you stop the app (ctrl + c), and if you close the terminal, you need to establish your venv or virtual environment, again. First `cd` into `programming_quizzes`:
-   
-   **Windows**
-   ```bash
-   prog_env\Scripts\activate
-   ```
-   
-   **macOS/Linux**
-   ```bash
-   source prog_env/bin/activate
-   ```
-
-## How It Works
-
-1. **Quiz Selection**: Users start at the selector page to choose a quiz
-2. **Main Quiz**: Questions are presented one at a time in shuffled order
-3. **Retry System**: After completing all questions, users are asked to retry any questions they got wrong
-4. **Retry Rounds**: This process repeats until all questions are answered correctly
-5. **Results**: Detailed results show:
-   - Overall score and percentage
-   - Questions answered correctly on first try (green)
-   - Questions that required retrying (red)
-   - Time taken to complete
-
-## Deactivating the Virtual Environment
-
-When you're done, deactivate the virtual environment:
-
-```bash
-deactivate
-```
-
-## Troubleshooting
-
-**"No quizzes found" error**
-- Ensure you have at least one `quiz_data*.json` file in the project root directory
-
-**Port 5000 already in use**
-- Edit `app.py` and change `port=5000` (at bottom of script) to another port like `port=5001`
-
-**Python not found**
-- Ensure Python is installed and added to your PATH
-- Try `python3 app.py` instead of `python app.py`
-
-## OS Compatibility
-
-This application is **cross-platform compatible**:
-- ✅ Windows
-- ✅ macOS
-- ✅ Linux
-
-The main differences are in the virtual environment activation commands (shown above).

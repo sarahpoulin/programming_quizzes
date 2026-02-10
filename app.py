@@ -1,16 +1,12 @@
 #!/usr/bin/env python3
 """
 Flask Quiz Application - JavaScript
-Includes retry mechanism for incorrectly answered questions
-Supports multiple retries until all questions are answered correctly
-Shuffles questions and answer options on each quiz start
-Supports inline fill-in-the-blank questions
-Supports multiple-answer questions (select all that apply)
+Now uses browser localStorage for quiz storage
+Users can upload/delete their own quizzes
 """
 
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 import json
-import os
 import uuid
 from datetime import datetime
 import random
@@ -89,42 +85,6 @@ def print_qr_code_terminal(url):
                 else:
                     line += " "
             print(line)
-
-def load_quiz_data(quiz_name=None):
-    """Load quiz data from JSON file"""
-    if quiz_name is None:
-        quiz_name = 'quiz_data'
-    
-    filename = f'{quiz_name}.json'
-    try:
-        with open(filename, 'r') as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return None
-    except json.JSONDecodeError:
-        return None
-
-def get_available_quizzes():
-    """Get list of all available quiz JSON files"""
-    quizzes = []
-    for filename in os.listdir('.'):
-        if filename.startswith('quiz_data') and filename.endswith('.json'):
-            quiz_name = filename.replace('.json', '')
-            try:
-                with open(filename, 'r') as f:
-                    data = json.load(f)
-                    title = data.get('title', quiz_name)
-                    quizzes.append({
-                        'name': quiz_name,
-                        'filename': filename,
-                        'title': title
-                    })
-            except (json.JSONDecodeError, IOError):
-                pass
-    
-    # Sort by name to ensure consistent ordering
-    quizzes.sort(key=lambda x: x['name'])
-    return quizzes
 
 def has_inline_blank(question_text):
     """Check if question text contains inline blank marker"""
@@ -207,109 +167,25 @@ def after_request(response):
 
 @app.route('/')
 def selector():
-    """Quiz selector page"""
-    available_quizzes = get_available_quizzes()
-    if not available_quizzes:
-        return render_template('error.html', 
-                             error="No quizzes found. Please ensure at least one quiz_data*.json file exists.")
-    return render_template('index.html', quizzes=available_quizzes)
+    """Quiz selector page - quizzes now loaded from localStorage"""
+    return render_template('index.html')
 
 @app.route('/quiz')
 def quiz():
     """Main quiz page"""
-    selected_quiz = session.get('selected_quiz')
-    if not selected_quiz:
-        return redirect(url_for('selector'))
-    
-    quiz_data = load_quiz_data(selected_quiz)
-    if not quiz_data:
-        return redirect(url_for('selector'))
-    
-    # Initialize session on first visit to this quiz
-    if 'shuffled_quiz' not in session:
-        session['current_question'] = 0
-        session['score'] = 0
-        session['answers'] = {}
-        session['missed_questions'] = []
-        session['retry_mode'] = False
-        session['retry_round'] = 0
-        session['start_time'] = datetime.now().isoformat()
-        shuffled_quiz = shuffle_quiz_data(quiz_data)
-        session['shuffled_quiz'] = shuffled_quiz
-    else:
-        shuffled_quiz = session['shuffled_quiz']
-    
-    # Check if quiz is complete
-    total_questions = len(shuffled_quiz['questions'])
-    current_q_num = session.get('current_question', 0)
-    
-    if current_q_num >= total_questions and not session.get('retry_mode'):
-        missed = session.get('missed_questions', [])
-        if missed:
-            session['retry_mode'] = True
-            session['retry_round'] = session.get('retry_round', 0) + 1
-            session['current_question'] = 0
-            session.modified = True
-            return redirect(url_for('quiz'))
-        else:
-            return redirect(url_for('results'))
-    
-    # Handle retry mode logic
-    if session.get('retry_mode'):
-        missed = session.get('missed_questions', [])
-        retry_q_num = session.get('current_question', 0)
-        
-        if retry_q_num >= len(missed):
-            all_correct = all(session['answers'].get(str(q_idx), {}).get('is_correct') for q_idx in missed)
-            if all_correct:
-                return redirect(url_for('results'))
-            else:
-                session['retry_round'] = session.get('retry_round', 0) + 1
-                session['current_question'] = 0
-                session.modified = True
-                return redirect(url_for('quiz'))
-        
-        q_index = missed[retry_q_num]
-        current_q = shuffled_quiz['questions'][q_index]
-        question_num = retry_q_num + 1
-        display_total = len(missed)
-        phase = f"Retry #{session['retry_round']}"
-    else:
-        q_index = current_q_num
-        if q_index >= total_questions:
-            return redirect(url_for('results'))
-        current_q = shuffled_quiz['questions'][q_index]
-        question_num = current_q_num + 1
-        display_total = total_questions
-        phase = "Main"
-    
-    # Determine if this is an inline fill-in-the-blank
-    is_inline_blank = (current_q.get('type') == 'fill_in_the_blank' and 
-                       has_inline_blank(current_q.get('question', '')))
-    
-    session.modified = True
-    return render_template('quiz.html',
-                         quiz_title=shuffled_quiz.get('title', 'Quiz'),
-                         quiz_data=shuffled_quiz,
-                         current_question=current_q,
-                         question_num=question_num,
-                         total_questions=display_total,
-                         phase=phase,
-                         question_type=current_q.get('type', 'multiple_choice'),
-                         is_inline_blank=is_inline_blank)
+    # Just render the page - quiz data will be loaded from localStorage via JavaScript
+    return render_template('quiz.html')
 
 @app.route('/submit_answer', methods=['POST'])
 def submit_answer():
     """Handle answer submission"""
-    selected_quiz = session.get('selected_quiz', 'quiz_data')
-    quiz_data = load_quiz_data(selected_quiz)
+    # Get quiz data and answer from request
+    quiz_data = request.json.get('quizData')
+    selected_answer = request.json.get('answer')
+    
     if not quiz_data:
         return jsonify({'error': 'Quiz data not found'})
     
-    # Get shuffled quiz from session
-    shuffled_quiz = session.get('shuffled_quiz', shuffle_quiz_data(quiz_data))
-    
-    selected_answer = request.json.get('answer')
     current_q_index = session.get('current_question', 0)
     is_retry = session.get('retry_mode', False)
     
@@ -320,11 +196,11 @@ def submit_answer():
             return jsonify({'error': 'Quiz already complete'})
         actual_q_index = missed[current_q_index]
     else:
-        if current_q_index >= len(shuffled_quiz['questions']):
+        if current_q_index >= len(quiz_data['questions']):
             return jsonify({'error': 'Quiz already complete'})
         actual_q_index = current_q_index
     
-    current_q = shuffled_quiz['questions'][actual_q_index]
+    current_q = quiz_data['questions'][actual_q_index]
     correct_answer = current_q.get('correct_answer')
     question_type = current_q.get('type', 'multiple_choice')
     
@@ -436,56 +312,55 @@ def next_question():
 
 @app.route('/results')
 def results():
-    """Show final results"""
-    selected_quiz = session.get('selected_quiz')
-    if not selected_quiz:
-        return redirect(url_for('selector'))
-    quiz_data = load_quiz_data(selected_quiz)
-    
-    # Get shuffled quiz from session
-    shuffled_quiz = session.get('shuffled_quiz', shuffle_quiz_data(quiz_data))
-    
-    score = session.get('score', 0)
-    total = len(shuffled_quiz['questions'])
-    percentage = round((score / total) * 100, 1) if total > 0 else 0
-    
-    # Calculate time taken
-    start_time = session.get('start_time')
-    time_taken = None
-    if start_time:
-        try:
-            start = datetime.fromisoformat(start_time)
-            time_taken = datetime.now() - start
-        except:
-            pass
-    
-    # Convert string keys back to integers for template compatibility
-    answers = session.get('answers', {})
-    converted_answers = {}
-    for key, value in answers.items():
-        converted_answers[int(key) if str(key).isdigit() else key] = value
-    
-    return render_template('results.html',
-                         quiz_data=shuffled_quiz,
-                         score=score,
-                         total=total,
-                         percentage=percentage,
-                         answers=converted_answers,
-                         time_taken=time_taken,
-                         retry_round=session.get('retry_round', 0))
+    """Show final results - quiz data comes from localStorage"""
+    return render_template('results.html')
 
 @app.route('/restart')
 def restart():
-    """Restart the quiz"""
-    # Save the selected quiz before clearing
-    selected_quiz = session.get('selected_quiz')
-    
-    # Clear session
+    """Restart the quiz - just clear session, quiz data is in localStorage"""
     session.clear()
-    
-    # Restore the selected quiz and reinitialize
-    if selected_quiz:
-        session['selected_quiz'] = selected_quiz
+    session.modified = True
+    return redirect(url_for('quiz'))
+
+@app.route('/api/start_quiz', methods=['POST'])
+def start_quiz():
+    """Start a quiz with data from localStorage"""
+    try:
+        print("\n" + "="*60)
+        print("START_QUIZ ENDPOINT CALLED")
+        print("="*60)
+        
+        # Get the JSON data from the request
+        if not request.json:
+            print("ERROR: No JSON data in request")
+            return jsonify({'error': 'No data received'}), 400
+        
+        print(f"Request JSON received: {bool(request.json)}")
+        
+        quiz_data = request.json.get('quizData')
+        
+        if not quiz_data:
+            print("ERROR: No quizData in request JSON")
+            return jsonify({'error': 'No quiz data provided'}), 400
+        
+        print(f"Quiz title: {quiz_data.get('title', 'No title')}")
+        print(f"Number of questions: {len(quiz_data.get('questions', []))}")
+        
+        # Validate quiz data structure
+        if 'questions' not in quiz_data or not isinstance(quiz_data['questions'], list):
+            print("ERROR: Invalid quiz data structure")
+            return jsonify({'error': 'Invalid quiz data structure'}), 400
+        
+        if len(quiz_data['questions']) == 0:
+            print("ERROR: No questions in quiz")
+            return jsonify({'error': 'Quiz must have at least one question'}), 400
+        
+        print("Clearing session...")
+        # Clear session
+        session.clear()
+        
+        print("Initializing minimal quiz session...")
+        # Store only minimal data in session - NOT the full quiz
         session['current_question'] = 0
         session['score'] = 0
         session['answers'] = {}
@@ -493,79 +368,181 @@ def restart():
         session['retry_mode'] = False
         session['retry_round'] = 0
         session['start_time'] = datetime.now().isoformat()
+        session['quiz_id'] = quiz_data.get('id')  # Only store the ID
         
-        # Shuffle and store quiz data
-        quiz_data = load_quiz_data(selected_quiz)
-        if quiz_data:
-            shuffled_quiz = shuffle_quiz_data(quiz_data)
-            session['shuffled_quiz'] = shuffled_quiz
-    
-    return redirect(url_for('quiz'))
+        print(f"Session initialized with quiz_id: {quiz_data.get('id')}")
+        
+        # Force session to save
+        session.modified = True
+        
+        print("Session saved. Sending success response with quiz data.")
+        print("="*60 + "\n")
+        
+        # Return the shuffled quiz data to the client
+        shuffled = shuffle_quiz_data(quiz_data)
+        
+        return jsonify({
+            'success': True,
+            'redirect': url_for('quiz'),
+            'shuffledQuiz': shuffled  # Send shuffled quiz back to store in localStorage
+        })
+        
+    except Exception as e:
+        # Log the error for debugging
+        print(f"\n!!! ERROR in start_quiz: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        print()
+        return jsonify({'error': str(e)}), 500
 
-@app.route('/api/quiz_data')
-def api_quiz_data():
-    """API endpoint to get quiz data"""
-    shuffled_quiz = session.get('shuffled_quiz')
-    if shuffled_quiz:
-        return jsonify(shuffled_quiz)
-    else:
-        selected_quiz = session.get('selected_quiz', 'quiz_data')
-        quiz_data = load_quiz_data(selected_quiz)
-        if quiz_data:
-            shuffled = shuffle_quiz_data(quiz_data)
-            return jsonify(shuffled)
+@app.route('/api/get_quiz_state', methods=['POST'])
+def get_quiz_state():
+    """Get the current quiz state from session"""
+    try:
+        # Get shuffled quiz from request (stored in localStorage)
+        quiz_data = request.json.get('shuffledQuiz')
+        
+        if not quiz_data:
+            return jsonify({'error': 'No quiz data provided'}), 400
+        
+        # Get session state
+        current_q_num = session.get('current_question', 0)
+        total_questions = len(quiz_data['questions'])
+        
+        # Check if quiz is complete
+        if current_q_num >= total_questions and not session.get('retry_mode'):
+            missed = session.get('missed_questions', [])
+            if missed:
+                session['retry_mode'] = True
+                session['retry_round'] = session.get('retry_round', 0) + 1
+                session['current_question'] = 0
+                session.modified = True
+                return jsonify({
+                    'redirect': url_for('quiz')
+                })
+            else:
+                return jsonify({
+                    'redirect': url_for('results'),
+                    'quizData': quiz_data  # Send quiz data for results page
+                })
+        
+        # Handle retry mode logic
+        if session.get('retry_mode'):
+            missed = session.get('missed_questions', [])
+            retry_q_num = session.get('current_question', 0)
+            
+            if retry_q_num >= len(missed):
+                all_correct = all(session['answers'].get(str(q_idx), {}).get('is_correct') for q_idx in missed)
+                if all_correct:
+                    return jsonify({
+                        'redirect': url_for('results'),
+                        'quizData': quiz_data
+                    })
+                else:
+                    session['retry_round'] = session.get('retry_round', 0) + 1
+                    session['current_question'] = 0
+                    session.modified = True
+                    return jsonify({
+                        'redirect': url_for('quiz')
+                    })
+            
+            q_index = missed[retry_q_num]
+            current_q = quiz_data['questions'][q_index]
+            question_num = retry_q_num + 1
+            display_total = len(missed)
+            phase = f"Retry #{session['retry_round']}"
         else:
-            return jsonify({'error': 'No quiz data found'}), 404
+            q_index = current_q_num
+            if q_index >= total_questions:
+                return jsonify({
+                    'redirect': url_for('results'),
+                    'quizData': quiz_data
+                })
+            current_q = quiz_data['questions'][q_index]
+            question_num = current_q_num + 1
+            display_total = total_questions
+            phase = "Main"
+        
+        # Determine if this is an inline fill-in-the-blank
+        is_inline_blank = (current_q.get('type') == 'fill_in_the_blank' and 
+                           has_inline_blank(current_q.get('question', '')))
+        
+        session.modified = True
+        
+        return jsonify({
+            'quiz_title': quiz_data.get('title', 'Quiz'),
+            'current_question': current_q,
+            'question_num': question_num,
+            'total_questions': display_total,
+            'phase': phase,
+            'question_type': current_q.get('type', 'multiple_choice'),
+            'is_inline_blank': is_inline_blank
+        })
+        
+    except Exception as e:
+        print(f"Error in get_quiz_state: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
 
-@app.route('/select_quiz/<quiz_name>', methods=['POST'])
-def select_quiz(quiz_name):
-    """Select a quiz to start"""
-    quiz_data = load_quiz_data(quiz_name)
-    if not quiz_data:
-        return jsonify({'error': 'Quiz not found'}), 404
-    
-    # Clear session and set selected quiz
-    session.clear()
-    session['selected_quiz'] = quiz_name
-    session['current_question'] = 0
-    session['score'] = 0
-    session['answers'] = {}
-    session['missed_questions'] = []
-    session['retry_mode'] = False
-    session['retry_round'] = 0
-    session['start_time'] = datetime.now().isoformat()
-    
-    # Shuffle and store quiz data
-    shuffled_quiz = shuffle_quiz_data(quiz_data)
-    session['shuffled_quiz'] = shuffled_quiz
-    
-    return jsonify({'success': True})
+@app.route('/api/get_results_data', methods=['POST'])
+def get_results_data():
+    """Get results data from session"""
+    try:
+        quiz_data = request.json.get('quizData')
+        
+        if not quiz_data:
+            return jsonify({'error': 'No quiz data provided'}), 400
+        
+        score = session.get('score', 0)
+        total = len(quiz_data['questions'])
+        percentage = round((score / total) * 100, 1) if total > 0 else 0
+        
+        # Calculate time taken
+        start_time = session.get('start_time')
+        time_taken_seconds = None
+        if start_time:
+            try:
+                start = datetime.fromisoformat(start_time)
+                delta = datetime.now() - start
+                time_taken_seconds = int(delta.total_seconds())
+            except:
+                pass
+        
+        # Convert string keys back to integers for template compatibility
+        answers = session.get('answers', {})
+        converted_answers = {}
+        for key, value in answers.items():
+            converted_answers[int(key) if str(key).isdigit() else key] = value
+        
+        return jsonify({
+            'score': score,
+            'total': total,
+            'percentage': percentage,
+            'answers': converted_answers,
+            'time_taken_seconds': time_taken_seconds,
+            'retry_round': session.get('retry_round', 0)
+        })
+        
+    except Exception as e:
+        print(f"Error in get_results_data: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
 
 def get_port():
     """Determine port based on system - 5001 for Mac, 5000 otherwise"""
     return 5001 if platform.system() == "Darwin" else 5000
 
 if __name__ == '__main__':
-    # Check if any quiz data exists
-    available_quizzes = get_available_quizzes()
-    if not available_quizzes:
-        print("\n" + "="*60)
-        print("ERROR: No quizzes found!")
-        print("="*60)
-        print("Please create at least one quiz_data*.json file.")
-        print("Examples: quiz_data.json, quiz_data1.json, quiz_data2.json")
-        print("="*60 + "\n")
-        exit(1)
-    
     # Determine port based on system
     port = get_port()
     
     print("\n" + "="*60)
-    print("QUIZ SERVER STARTING")
+    print("QUIZ SERVER STARTING (localStorage Mode)")
     print("="*60)
-    print(f"Available quizzes: {len(available_quizzes)}")
-    for quiz in available_quizzes:
-        print(f"  - {quiz['title']} ({quiz['filename']})")
+    print("Quizzes are now managed in browser localStorage")
+    print("Users can upload and manage their own quizzes")
     print("="*60)
     
     # Get local IP

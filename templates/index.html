@@ -9,50 +9,260 @@
 <body>
     <div class="container">
         <div class="selector-header">
-            <h1>📚 Select a Quiz</h1>
-            <p>Choose a quiz to get started</p>
+            <h1>📚 Quiz Manager</h1>
+            <p>Upload, manage, and take quizzes</p>
         </div>
 
         <div class="selector-content">
-            <div class="quizzes-grid">
-                {% for quiz in quizzes %}
-                    <div class="quiz-card" onclick="selectQuiz('{{ quiz.name }}', this)">
-                        <div class="quiz-icon">✏️</div>
-                        <h3>{{ quiz.title }}</h3>
-                        <p>{{ quiz.filename }}</p>
-                        <button class="btn btn-primary" type="button">Start Quiz</button>
-                    </div>
-                {% endfor %}
+            <!-- Upload Section -->
+            <div class="upload-section">
+                <h3>📤 Upload New Quiz</h3>
+                <div class="upload-controls">
+                    <input type="file" id="quizFileInput" accept=".json" class="file-input">
+                    <label for="quizFileInput" class="btn btn-secondary">
+                        Choose JSON File
+                    </label>
+                    <span id="fileName" class="file-name"></span>
+                </div>
+                <p class="upload-hint">Select a quiz JSON file to add it to your collection</p>
+            </div>
+
+            <!-- Quizzes Grid -->
+            <div class="quizzes-section">
+                <h3>📋 Available Quizzes</h3>
+                <div id="quizzesGrid" class="quizzes-grid">
+                    <!-- Quizzes will be loaded here by JavaScript -->
+                </div>
+                <div id="emptyState" class="empty-state hidden">
+                    <div class="empty-icon">📭</div>
+                    <p>No quizzes available</p>
+                    <p class="empty-hint">Upload a JSON quiz file to get started!</p>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
-        async function selectQuiz(quizName, cardElement) {
-            cardElement.classList.add('loading');
+        // LocalStorage key for storing quizzes
+        const STORAGE_KEY = 'quizzes';
+
+        // Load quizzes from localStorage
+        function loadQuizzes() {
+            const quizzesJSON = localStorage.getItem(STORAGE_KEY);
+            return quizzesJSON ? JSON.parse(quizzesJSON) : [];
+        }
+
+        // Save quizzes to localStorage
+        function saveQuizzes(quizzes) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(quizzes));
+        }
+
+        // Generate unique ID for quiz
+        function generateQuizId() {
+            return 'quiz_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        }
+
+        // Render quizzes grid
+        function renderQuizzes() {
+            const quizzes = loadQuizzes();
+            const grid = document.getElementById('quizzesGrid');
+            const emptyState = document.getElementById('emptyState');
+
+            if (quizzes.length === 0) {
+                grid.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
             
+            grid.innerHTML = quizzes.map(quiz => `
+                <div class="quiz-card">
+                    <div class="quiz-icon">✏️</div>
+                    <h3>${escapeHtml(quiz.title || 'Untitled Quiz')}</h3>
+                    <p>${quiz.questions ? quiz.questions.length : 0} questions</p>
+                    <div class="quiz-actions">
+                        <button class="btn btn-primary" onclick="event.stopPropagation(); startQuiz('${quiz.id}', event);">
+                            Start Quiz
+                        </button>
+                        <button class="btn btn-danger btn-small" onclick="event.stopPropagation(); deleteQuiz('${quiz.id}', event);" title="Delete quiz">
+                            🗑️
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Handle file upload
+        document.getElementById('quizFileInput').addEventListener('change', async function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const fileNameSpan = document.getElementById('fileName');
+            fileNameSpan.textContent = file.name;
+
             try {
-                const response = await fetch(`/select_quiz/${quizName}`, {
+                const text = await file.text();
+                const quizData = JSON.parse(text);
+
+                // Validate quiz data
+                if (!quizData.questions || !Array.isArray(quizData.questions)) {
+                    throw new Error('Invalid quiz format: missing or invalid questions array');
+                }
+
+                if (quizData.questions.length === 0) {
+                    throw new Error('Quiz must contain at least one question');
+                }
+
+                // Add unique ID to quiz
+                quizData.id = generateQuizId();
+
+                // Load existing quizzes
+                const quizzes = loadQuizzes();
+
+                // Add new quiz
+                quizzes.push(quizData);
+
+                // Save to localStorage
+                saveQuizzes(quizzes);
+
+                // Re-render quizzes
+                renderQuizzes();
+
+                // Show success message
+                alert(`Quiz "${quizData.title || 'Untitled'}" uploaded successfully!`);
+
+                // Reset file input
+                e.target.value = '';
+                fileNameSpan.textContent = '';
+
+            } catch (error) {
+                alert('Error uploading quiz: ' + error.message);
+                e.target.value = '';
+                fileNameSpan.textContent = '';
+            }
+        });
+
+        // Start a quiz
+        async function startQuiz(quizId, event) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+
+            const quizzes = loadQuizzes();
+            const quiz = quizzes.find(q => q.id === quizId);
+
+            if (!quiz) {
+                alert('Quiz not found!');
+                return;
+            }
+
+            // Show loading state
+            const button = event ? event.target : null;
+            if (button) {
+                button.disabled = true;
+                button.textContent = 'Loading...';
+            }
+
+            try {
+                console.log('Starting quiz:', quiz.title);
+                console.log('Sending quiz data to server...');
+
+                const response = await fetch('/api/start_quiz', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
-                    }
+                    },
+                    body: JSON.stringify({ quizData: quiz })
                 });
 
-                const data = await response.json();
+                console.log('Response status:', response.status);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Server error:', errorText);
+                    throw new Error(`Server returned ${response.status}: ${errorText}`);
+                }
 
-                if (response.ok) {
-                    // Redirect to quiz
+                const data = await response.json();
+                console.log('Response data:', data);
+
+                if (data.success) {
+                    // Store the shuffled quiz in localStorage for the quiz page to use
+                    localStorage.setItem('currentShuffledQuiz', JSON.stringify(data.shuffledQuiz));
+                    console.log('Shuffled quiz stored in localStorage');
+                    console.log('Success! Redirecting to:', data.redirect);
+                    
+                    // Redirect immediately
                     window.location.href = data.redirect || '/quiz';
                 } else {
-                    alert('Error loading quiz. Please try again.');
-                    cardElement.classList.remove('loading');
+                    throw new Error(data.error || 'Unknown error');
                 }
             } catch (error) {
-                alert('Error: ' + error.message);
-                cardElement.classList.remove('loading');
+                console.error('Error starting quiz:', error);
+                alert('Error starting quiz: ' + error.message);
+                if (button) {
+                    button.disabled = false;
+                    button.textContent = 'Start Quiz';
+                }
             }
         }
+
+        // Delete a quiz
+        function deleteQuiz(quizId, event) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+
+            const quizzes = loadQuizzes();
+            const quiz = quizzes.find(q => q.id === quizId);
+
+            if (!quiz) {
+                alert('Quiz not found!');
+                return;
+            }
+
+            const confirmDelete = confirm(`Are you sure you want to delete "${quiz.title || 'Untitled Quiz'}"?`);
+            
+            if (confirmDelete) {
+                const updatedQuizzes = quizzes.filter(q => q.id !== quizId);
+                saveQuizzes(updatedQuizzes);
+                renderQuizzes();
+                alert('Quiz deleted successfully!');
+            }
+        }
+
+        // Clear server session (utility function for debugging)
+        async function clearServerSession() {
+            try {
+                const response = await fetch('/api/clear_session', {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                if (data.success) {
+                    alert('Server session cleared successfully!');
+                } else {
+                    alert('Failed to clear session');
+                }
+            } catch (error) {
+                console.error('Error clearing session:', error);
+                alert('Error clearing session: ' + error.message);
+            }
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            renderQuizzes();
+        });
     </script>
 </body>
 </html>
